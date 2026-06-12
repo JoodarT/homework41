@@ -5,15 +5,31 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
+import java.util.function.Function;
 
 public class EhcoServer {
 
     private final int port;
+    private final Map<String, Function<String, String>> commands = new HashMap<>();
 
     public EhcoServer(int port) {
         this.port = port;
+        initCommands();
+    }
+
+    private void initCommands() {
+        commands.put("date", msg -> LocalDate.now().format(DateTimeFormatter.ISO_DATE));
+        commands.put("time", msg -> LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        commands.put("reverse", msg -> new StringBuilder(msg.substring(7).strip()).reverse().toString());
+        commands.put("upper", msg -> msg.substring(5).strip().toUpperCase());
+        commands.put("bye", msg -> "bye bye");
     }
 
     public static EhcoServer bindToPort(int port) {
@@ -50,14 +66,20 @@ public class EhcoServer {
                 String message = scanner.nextLine().strip();
                 System.out.printf("GOT %s%n", message);
 
-                if ("bye".equalsIgnoreCase(message)) {
-                    writer.println("bye bye");
+                String commandKey = commands.keySet().stream()
+                        .filter(key -> message.startsWith(key))
+                        .findFirst()
+                        .orElse("");
+
+                Function<String, String> action = commands.getOrDefault(commandKey, msg -> msg);
+                String response = action.apply(message);
+
+                writer.println(response);
+
+                if ("bye".equals(commandKey)) {
                     System.out.println("bye bye");
                     return;
                 }
-
-                String reversed = new StringBuilder(message).reverse().toString();
-                writer.println(reversed);
             }
         } catch (NoSuchElementException ex) {
             System.out.println("Client dropped connection");
